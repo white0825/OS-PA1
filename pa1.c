@@ -36,6 +36,75 @@
  */
 extern struct list_head history;
 
+struct entry{
+	struct list_head list;
+	char *command;
+};
+
+int convert_int(char *string)
+{
+	int num=0;
+	int len=strlen(string);
+	int j=1;
+	for(int i=len-1;i>=0;i--){
+		num+=(string[i]-'0') * j;
+		j*=10;
+	}
+	return num;
+}
+
+int process_command(char * command);
+int run_command(int nr_tokens, char * const tokens[]);
+
+int find_command(int num)
+{
+	char *tokens[MAX_NR_TOKENS] = { NULL };
+	int nr_tokens = 0;
+	
+	struct list_head *pos=NULL;
+	struct entry *out=NULL;
+	
+	int i=0;
+	char target_command[128];
+	list_for_each(pos, &history){
+		out=list_entry(pos, struct entry, list);
+		if(i==num){
+			strcpy(target_command, out->command);			
+		}
+		i++;
+	}
+	
+	parse_command(target_command, &nr_tokens, tokens);
+	
+	if(target_command[0]=='!'){
+		int new_num=convert_int(tokens[1]);
+		return find_command(new_num);
+	}
+	else{
+		return run_command(nr_tokens, tokens);
+	}
+	
+	return -1;
+}
+
+int see_history()
+{
+	struct list_head *pos=NULL;
+	struct entry *out=NULL;
+	
+	int i=0;
+	list_for_each(pos, &history){
+		out=list_entry(pos, struct entry, list);
+		int len=strlen(out->command);
+		fprintf(stderr, "%d: %s\n", i, out->command);
+		printf("%c\n",out->command[len]);
+		/*if(out->command[len-1]!='\n'){
+			fprintf(stderr, "\n");
+		}*/
+		i++;	
+	}
+	return 1;
+}
 
 /***********************************************************************
  * run_command()
@@ -52,8 +121,28 @@ extern struct list_head history;
 int run_command(int nr_tokens, char * const tokens[])
 {
 	if (strcmp(tokens[0], "exit") == 0) return 0;
+	
+	else if (strcmp(tokens[0], "!") == 0){
+		int num=convert_int(tokens[1]);
+		
+		return find_command(num);
+		/*struct list_head *pos=NULL;
+		struct entry *out=NULL;
+		
+		int i=0;
+		list_for_each(pos, &history){
+			out=list_entry(pos, struct entry, list);
+			if(i==num){
+				//fprintf(stderr, "%d: %s", i, out->command);
+				return process_command(out->command);
+				break;
+				
+			}
+			i++;
+		}*/
+	}
 
-	if (strcmp(tokens[0], "cd") == 0){
+	else if (strcmp(tokens[0], "cd") == 0){
 
 		if(strcmp(tokens[1], "~")==0){
 			char *homePath=getenv("HOME");
@@ -61,7 +150,7 @@ int run_command(int nr_tokens, char * const tokens[])
 			return 1;
 		}
 
-		else if(chdir(tokens[1])){
+		else if(chdir(tokens[1])==0){
 			return 1;
 		}
 		else{
@@ -69,27 +158,33 @@ int run_command(int nr_tokens, char * const tokens[])
 		}
 	}
 	
-	char command[64]="/bin/";
-
-	if(strcmp(tokens[0], "ls")==0) strcat(command, tokens[0]);
-	if(strcmp(tokens[0], "pwd")==0) strcat(command, tokens[0]);
-	if(strcmp(tokens[0], "cp")==0) strcat(command, tokens[0]);
-
-	if(strcmp(command, "/bin/")==0) strcpy(command, tokens[0]);
-
-	pid_t pid;
-
-	pid=fork();
-
-	if(pid==0){
-		if(execv(command, tokens )==-1){
-			fprintf(stderr, "Unable to execute %s\n", tokens[0]);
-			return -1;
-		}
+	else if (strcmp(tokens[0], "history") == 0){
+		return see_history();
 	}
-	if(pid>0){
-		wait(NULL);
-		return 1;
+	else{
+		char command[128]="/bin/";
+
+		if(strcmp(tokens[0], "ls")==0) strcat(command, tokens[0]);
+		if(strcmp(tokens[0], "pwd")==0) strcat(command, tokens[0]);
+		if(strcmp(tokens[0], "cp")==0) strcat(command, tokens[0]);
+		if(strcmp(tokens[0], "echo")==0) strcat(command, tokens[0]);
+
+		if(strcmp(command, "/bin/")==0) strcpy(command, tokens[0]);
+
+		pid_t pid;
+
+		pid=fork();
+
+		if(pid==0){
+			if(execv(command, tokens )==-1){
+				fprintf(stderr, "Unable to execute %s\n", tokens[0]);
+				return -1;
+			}
+		}
+		if(pid>0){
+			wait(NULL);
+			return 1;
+		}
 	}
 
 	return -1;
@@ -105,8 +200,25 @@ int run_command(int nr_tokens, char * const tokens[])
  */
 void append_history(char * const command)
 {
+	struct entry *new=NULL;
+	new=(struct entry*)malloc(sizeof(struct entry));
 
+	int len=strlen(command);
+
+	new->command=NULL;
+
+	new->command=(char*)malloc(sizeof(char)*(len+1));
+
+	strcpy(new->command, command);
+	
+	//new->command[len-1]='\0';
+	
+	printf("test: %s\n",new->command);
+
+	list_add_tail(&(new->list), &history);
 }
+
+
 
 
 /***********************************************************************
