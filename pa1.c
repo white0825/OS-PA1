@@ -20,6 +20,9 @@
 #include <errno.h>
 
 #include <string.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
 
 #include "types.h"
 #include "list_head.h"
@@ -50,8 +53,37 @@ int run_command(int nr_tokens, char * const tokens[])
 {
 	if (strcmp(tokens[0], "exit") == 0) return 0;
 
-	fprintf(stderr, "Unable to execute %s\n", tokens[0]);
-	return -EINVAL;
+	if (strcmp(toekns[0], "cd") == 0){
+		//Todo cd
+	}
+
+	char buf[64];
+
+	memset(buf, 0x00, 64);
+
+	for(int i=0; i<nr_tokens; i++){
+		strcat(buf, tokens[i]);
+		strcat(buf, " ");
+	}
+
+	int len=strlen(buf);
+	buf[len-1]='\0';
+
+	pid_t pid;
+
+	pid=fork();
+	if(pid==0){
+		if(execlp(buf, buf, NULL)==-1){
+			fprintf(stderr, "Unable to execute %s\n", tokens[0]);
+			return -1;
+		}
+	}
+	if(pid>0){
+		wait(NULL);
+		return 1;
+	}
+
+	return -1;
 }
 
 
