@@ -46,12 +46,15 @@ int time_limit=2;
 char process_name[64];
 
 int id=0;
+int time_out=0;
 
 void timeout(int sig)
 {	
-	alarm(0);
-	fprintf(stderr, "%s is timed out\n", process_name);
-	kill(id, SIGKILL);	
+	time_out=1;
+	
+	//printf("test\n");
+	
+	kill(id, SIGKILL);
 	return;
 }
 
@@ -109,12 +112,7 @@ int see_history()
 	int i=0;
 	list_for_each(pos, &history){
 		out=list_entry(pos, struct entry, list);
-		//int len=strlen(out->command);
 		fprintf(stderr, "%2d: %s", i, out->command);
-		//printf("%c\n",out->command[len]);
-		/*if(out->command[len-1]!='\n'){
-			fprintf(stderr, "\n");
-		}*/
 		i++;	
 	}
 	return 1;
@@ -148,20 +146,6 @@ int run_command(int nr_tokens, char * const tokens[])
 		int num=convert_int(tokens[1]);
 		
 		return find_command(num);
-		/*struct list_head *pos=NULL;
-		struct entry *out=NULL;
-		
-		int i=0;
-		list_for_each(pos, &history){
-			out=list_entry(pos, struct entry, list);
-			if(i==num){
-				//fprintf(stderr, "%d: %s", i, out->command);
-				return process_command(out->command);
-				break;
-				
-			}
-			i++;
-		}*/
 	}
 
 	else if (strcmp(tokens[0], "cd") == 0){
@@ -223,24 +207,31 @@ int run_command(int nr_tokens, char * const tokens[])
 		if(strcmp(command, "/bin/")==0) strcpy(command, tokens[0]);
 		
 		
+		time_out=0;
+		alarm(time_limit);
+		//printf("%d\n", time_limit);
+			
 		pid_t pid;
 
 		pid=fork();
-		id=pid;
+		id=pid;			
 		
-		alarm(time_limit);
-
 		if(pid==0){
 			if(execv(command, tokens )==-1){
 				fprintf(stderr, "Unable to execute %s\n", tokens[0]);
 				return -1;
 			}
-		
+			
 			return -1;
 			
 		}
 		if(pid>0){	
-			waitpid(-1, 0, 0);		
+			waitpid(pid, 0, 0);
+			
+			if(time_out) fprintf(stderr, "%s is timed out\n", tokens[0]);
+			
+			alarm(0);
+				
 			return 1;
 		}
 	}
