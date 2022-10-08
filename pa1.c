@@ -53,27 +53,36 @@ int run_command(int nr_tokens, char * const tokens[])
 {
 	if (strcmp(tokens[0], "exit") == 0) return 0;
 
-	if (strcmp(toekns[0], "cd") == 0){
-		//Todo cd
+	if (strcmp(tokens[0], "cd") == 0){
+
+		if(strcmp(tokens[1], "~")==0){
+			char *homePath=getenv("HOME");
+			chdir(homePath);
+			return 1;
+		}
+
+		else if(chdir(tokens[1])){
+			return 1;
+		}
+		else{
+			return -1;
+		}
 	}
+	
+	char command[64]="/bin/";
 
-	char buf[64];
+	if(strcmp(tokens[0], "ls")==0) strcat(command, tokens[0]);
+	if(strcmp(tokens[0], "pwd")==0) strcat(command, tokens[0]);
+	if(strcmp(tokens[0], "cp")==0) strcat(command, tokens[0]);
 
-	memset(buf, 0x00, 64);
-
-	for(int i=0; i<nr_tokens; i++){
-		strcat(buf, tokens[i]);
-		strcat(buf, " ");
-	}
-
-	int len=strlen(buf);
-	buf[len-1]='\0';
+	if(strcmp(command, "/bin/")==0) strcpy(command, tokens[0]);
 
 	pid_t pid;
 
 	pid=fork();
+
 	if(pid==0){
-		if(execlp(buf, buf, NULL)==-1){
+		if(execv(command, tokens )==-1){
 			fprintf(stderr, "Unable to execute %s\n", tokens[0]);
 			return -1;
 		}
