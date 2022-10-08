@@ -22,6 +22,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <signal.h>
 
 
 #include "types.h"
@@ -40,6 +41,19 @@ struct entry{
 	struct list_head list;
 	char *command;
 };
+
+int time_limit=2;
+char process_name[64];
+
+int id=0;
+
+void timeout(int sig)
+{	
+	alarm(0);
+	fprintf(stderr, "%s is timed out\n", process_name);
+	kill(id, SIGKILL);	
+	return;
+}
 
 int convert_int(char *string)
 {
@@ -95,9 +109,9 @@ int see_history()
 	int i=0;
 	list_for_each(pos, &history){
 		out=list_entry(pos, struct entry, list);
-		int len=strlen(out->command);
-		fprintf(stderr, "%d: %s\n", i, out->command);
-		printf("%c\n",out->command[len]);
+		//int len=strlen(out->command);
+		fprintf(stderr, "%2d: %s", i, out->command);
+		//printf("%c\n",out->command[len]);
 		/*if(out->command[len-1]!='\n'){
 			fprintf(stderr, "\n");
 		}*/
@@ -120,6 +134,14 @@ int see_history()
  */
 int run_command(int nr_tokens, char * const tokens[])
 {
+	struct sigaction act;
+	act.sa_handler=timeout;
+	sigemptyset(&act.sa_mask);
+	act.sa_flags=0;
+	sigaction(SIGALRM, &act, 0);
+	
+	strcpy(process_name,tokens[0]);	
+	
 	if (strcmp(tokens[0], "exit") == 0) return 0;
 	
 	else if (strcmp(tokens[0], "!") == 0){
@@ -143,8 +165,14 @@ int run_command(int nr_tokens, char * const tokens[])
 	}
 
 	else if (strcmp(tokens[0], "cd") == 0){
+	
+		if(nr_tokens==1){
+			char *homePath=getenv("HOME");
+			chdir(homePath);
+			return 1;
+		}
 
-		if(strcmp(tokens[1], "~")==0){
+		else if(strcmp(tokens[1], "~")==0){
 			char *homePath=getenv("HOME");
 			chdir(homePath);
 			return 1;
@@ -161,6 +189,26 @@ int run_command(int nr_tokens, char * const tokens[])
 	else if (strcmp(tokens[0], "history") == 0){
 		return see_history();
 	}
+	
+	else if(strcmp(tokens[0], "timeout") == 0){
+		if(nr_tokens==1){
+			fprintf(stderr, "Current timeout is %d second\n", time_limit);
+			return 1;
+		}
+		else{
+			time_limit=convert_int(tokens[1]);
+			if(time_limit==0){
+				printf("Timeout is disabled\n");
+			}
+			else{
+				fprintf(stderr, "Timeout is set to %d seconds\n", time_limit);
+			}
+			return 1;
+		}
+		
+		return -1;
+	}
+	
 	else{
 		char command[128]="/bin/";
 
@@ -168,21 +216,31 @@ int run_command(int nr_tokens, char * const tokens[])
 		if(strcmp(tokens[0], "pwd")==0) strcat(command, tokens[0]);
 		if(strcmp(tokens[0], "cp")==0) strcat(command, tokens[0]);
 		if(strcmp(tokens[0], "echo")==0) strcat(command, tokens[0]);
+		if(strcmp(tokens[0], "touch")==0) strcat(command, tokens[0]);
+		if(strcmp(tokens[0], "rm")==0) strcat(command, tokens[0]);
+		if(strcmp(tokens[0], "sleep")==0) strcat(command, tokens[0]);
 
 		if(strcmp(command, "/bin/")==0) strcpy(command, tokens[0]);
-
+		
+		
 		pid_t pid;
 
 		pid=fork();
+		id=pid;
+		
+		alarm(time_limit);
 
 		if(pid==0){
 			if(execv(command, tokens )==-1){
 				fprintf(stderr, "Unable to execute %s\n", tokens[0]);
 				return -1;
 			}
+		
+			return -1;
+			
 		}
-		if(pid>0){
-			wait(NULL);
+		if(pid>0){	
+			waitpid(-1, 0, 0);		
 			return 1;
 		}
 	}
@@ -213,7 +271,7 @@ void append_history(char * const command)
 	
 	//new->command[len-1]='\0';
 	
-	printf("test: %s\n",new->command);
+	//printf("test: %s\n",new->command);
 
 	list_add_tail(&(new->list), &history);
 }
